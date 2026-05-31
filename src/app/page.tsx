@@ -7,6 +7,8 @@ import VideoCard from '@/components/VideoCard';
 import HistoryList from '@/components/HistoryList';
 import { Task } from '@/lib/tasks';
 
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+
 export default function Home() {
   const [currentTask, setCurrentTask] = useState<Task | null>(null);
   const [history, setHistory] = useState<{id: string, title: string, quality: string}[]>([]);
@@ -18,7 +20,7 @@ export default function Home() {
 
     pollingRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/progress?taskId=${taskId}`);
+        const res = await fetch(`${API_BASE_URL}/api/progress?taskId=${taskId}`);
         if (!res.ok) throw new Error('Falha ao buscar progresso');
         
         const task: Task = await res.json();
@@ -30,7 +32,7 @@ export default function Home() {
 
           if (task.status === 'completed') {
             // Trigger download
-            window.location.href = `/api/download?taskId=${taskId}`;
+            window.location.href = `${API_BASE_URL}/api/download?taskId=${taskId}`;
             
             // Add to history
             if (task.title) {
@@ -59,7 +61,7 @@ export default function Home() {
     try {
       // Opt: In a real app we might fetch info first to show the card immediately, 
       // but our API does it and updates the task shortly.
-      const res = await fetch('/api/convert', {
+      const res = await fetch(`${API_BASE_URL}/api/convert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, quality }),
