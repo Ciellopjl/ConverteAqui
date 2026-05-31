@@ -5,88 +5,99 @@ import TypewriterTitle from '@/components/TypewriterTitle';
 import DownloadForm from '@/components/DownloadForm';
 import VideoCard from '@/components/VideoCard';
 import HistoryList from '@/components/HistoryList';
-import { Task } from '@/lib/tasks';
 
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+interface VideoInfo {
+  id: string | null;
+  title: string;
+  thumbnail: string;
+  duration: number;
+}
+
+interface DisplayTask {
+  title?: string;
+  thumbnail?: string;
+  duration?: number;
+  progress: number;
+  status: 'pending' | 'downloading' | 'converting' | 'completed' | 'error';
+  error?: string;
+}
 
 export default function Home() {
-  const [currentTask, setCurrentTask] = useState<Task | null>(null);
+  const [displayTask, setDisplayTask] = useState<DisplayTask | null>(null);
   const [history, setHistory] = useState<{id: string, title: string, quality: string}[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
-
-  const startPolling = (taskId: string, quality: string) => {
-    if (pollingRef.current) clearInterval(pollingRef.current);
-
-    pollingRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/progress?taskId=${taskId}`);
-        if (!res.ok) throw new Error('Falha ao buscar progresso');
-        
-        const task: Task = await res.json();
-        setCurrentTask(task);
-
-        if (task.status === 'completed' || task.status === 'error') {
-          clearInterval(pollingRef.current!);
-          setIsLoading(false);
-
-          if (task.status === 'completed') {
-            // Trigger download
-            window.location.href = `${API_BASE_URL}/api/download?taskId=${taskId}`;
-            
-            // Add to history
-            if (task.title) {
-              const title = task.title;
-              setHistory(prev => [{ id: taskId, title, quality }, ...prev]);
-            }
-            
-            // Clear current task after a delay
-            setTimeout(() => {
-              setCurrentTask(null);
-            }, 5000);
-          }
-        }
-      } catch {
-        clearInterval(pollingRef.current!);
-        setIsLoading(false);
-        setCurrentTask(prev => prev ? { ...prev, status: 'error', error: 'Erro de conexão com o servidor.' } : null);
-      }
-    }, 1000);
-  };
+  const currentUrlRef = useRef<string>('');
 
   const handleConvert = async (url: string, quality: string) => {
     setIsLoading(true);
-    setCurrentTask({ id: 'temp', status: 'pending', progress: 0 }); // Placeholder
+    currentUrlRef.current = url;
+
+    // Step 1: Fetch video info
+    setDisplayTask({ status: 'pending', progress: 0 });
+
+    let info: VideoInfo | null = null;
 
     try {
-      // Opt: In a real app we might fetch info first to show the card immediately, 
-      // but our API does it and updates the task shortly.
-      const res = await fetch(`${API_BASE_URL}/api/convert`, {
+      const infoRes = await fetch('/api/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const infoData = await infoRes.json();
+
+      if (!infoRes.ok) throw new Error(infoData.error || 'Falha ao buscar informações.');
+
+      info = infoData;
+      setDisplayTask({
+        title: infoData.title,
+        thumbnail: infoData.thumbnail,
+        duration: infoData.duration,
+        status: 'converting',
+        progress: 0,
+      });
+    } catch (err: any) {
+      setDisplayTask({ status: 'error', progress: 0, error: err.message });
+      setIsLoading(false);
+      return;
+    }
+
+    // Step 2: Get download URL from cobalt
+    try {
+      const convertRes = await fetch('/api/convert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, quality }),
       });
+      const convertData = await convertRes.json();
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Erro ao iniciar conversão');
+      if (!convertRes.ok) throw new Error(convertData.error || 'Falha ao converter.');
+
+      // Show completed state
+      setDisplayTask(prev => prev ? { ...prev, status: 'completed', progress: 100 } : null);
+
+      // Add to history
+      if (info?.title) {
+        const taskId = crypto.randomUUID();
+        setHistory(prev => [{ id: taskId, title: info!.title, quality }, ...prev]);
       }
 
-      const data = await res.json();
-      startPolling(data.taskId, quality);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro';
-      setCurrentTask({ id: 'error', status: 'error', progress: 0, error: message });
+      // Trigger direct download
+      const a = document.createElement('a');
+      a.href = convertData.downloadUrl;
+      a.download = convertData.filename || 'audio.mp3';
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // Clear card after delay
+      setTimeout(() => setDisplayTask(null), 5000);
+    } catch (err: any) {
+      setDisplayTask(prev => prev ? { ...prev, status: 'error', error: err.message } : null);
+    } finally {
       setIsLoading(false);
     }
   };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, []);
 
   return (
     <main className="min-h-screen bg-ciello-black relative overflow-hidden flex flex-col items-center py-20 px-4">
@@ -103,14 +114,14 @@ export default function Home() {
 
         <DownloadForm onSubmit={handleConvert} isLoading={isLoading} />
 
-        {currentTask && (currentTask.title || currentTask.status === 'error' || currentTask.status === 'pending') && (
+        {displayTask && (
           <VideoCard 
-            title={currentTask.title || 'Carregando informações...'}
-            thumbnail={currentTask.thumbnail || 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=640&auto=format&fit=crop'}
-            duration={currentTask.duration || 0}
-            progress={currentTask.progress}
-            status={currentTask.status}
-            error={currentTask.error}
+            title={displayTask.title || 'Carregando informações...'}
+            thumbnail={displayTask.thumbnail || 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=640&auto=format&fit=crop'}
+            duration={displayTask.duration || 0}
+            progress={displayTask.progress}
+            status={displayTask.status}
+            error={displayTask.error}
           />
         )}
 
