@@ -45,7 +45,12 @@ export default function Home() {
       });
       const infoData = await infoRes.json();
 
-      if (!infoRes.ok) throw new Error(infoData.error || 'Falha ao buscar informações.');
+      if (!infoRes.ok) {
+        const errorMsg = infoData.error && typeof infoData.error === 'object'
+          ? (infoData.error.message || 'Falha ao buscar informações.')
+          : (infoData.error || 'Falha ao buscar informações.');
+        throw new Error(errorMsg);
+      }
 
       info = infoData;
       setDisplayTask({
@@ -70,7 +75,12 @@ export default function Home() {
       });
       const convertData = await convertRes.json();
 
-      if (!convertRes.ok) throw new Error(convertData.error || 'Falha ao converter.');
+      if (!convertRes.ok) {
+        const errorMsg = convertData.error && typeof convertData.error === 'object'
+          ? (convertData.error.message || 'Falha ao converter.')
+          : (convertData.error || 'Falha ao converter.');
+        throw new Error(errorMsg);
+      }
 
       const taskId = convertData.taskId;
 
