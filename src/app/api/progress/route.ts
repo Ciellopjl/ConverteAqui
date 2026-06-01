@@ -9,7 +9,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'taskId obrigatório' }, { status: 400 });
   }
 
-  const backendUrl = process.env.BACKEND_URL;
+  const isLocalDev = process.env.NODE_ENV === 'development' && !process.env.BACKEND_URL;
+  const backendUrl = process.env.BACKEND_URL || (isLocalDev ? null : 'https://ciello-upload.onrender.com');
+
   if (backendUrl) {
     const res = await fetch(`${backendUrl}/api/progress?taskId=${taskId}`);
     if (!res.ok) {
