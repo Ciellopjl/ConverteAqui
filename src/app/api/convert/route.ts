@@ -1,14 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// Increase timeout for Vercel hobby plan (up to 60s)
-export const maxDuration = 60;
-
-// Public cobalt instances to try in order
-const COBALT_INSTANCES = [
-  'https://cobalt.tools',
-  'https://co.wuk.sh',
-  'https://cobalt.api.lostless.de',
-];
+import { downloadAndConvert } from '@/lib/ytdlp';
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,46 +9,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'URL é obrigatória' }, { status: 400 });
     }
 
-    let lastError = 'Não foi possível obter o link de download.';
-
-    for (const instance of COBALT_INSTANCES) {
-      try {
-        const res = await fetch(instance, {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            url,
-            downloadMode: 'audio',
-            audioFormat: 'mp3',
-            audioBitrate: quality,
-          }),
-          signal: AbortSignal.timeout(15000),
-        });
-
-        if (!res.ok) continue;
-
-        const data = await res.json();
-
-        if ((data.status === 'tunnel' || data.status === 'redirect') && data.url) {
-          return NextResponse.json({
-            downloadUrl: data.url,
-            filename: data.filename || 'audio.mp3',
-          });
-        }
-
-        if (data.status === 'error' && data.error?.code) {
-          lastError = `Erro: ${data.error.code}`;
-        }
-      } catch {
-        // Try next instance
-        continue;
-      }
+    const hasValidId = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/.test(url);
+    if (!hasValidId) {
+      return NextResponse.json({ 
+        error: 'Link do YouTube inválido ou incompleto. Certifique-se de copiar o link completo do vídeo (ex: contendo watch?v= ou youtu.be/).' 
+      }, { status: 400 });
     }
 
-    return NextResponse.json({ error: lastError }, { status: 502 });
+    const backendUrl = process.env.BACKEND_URL;
+    if (backendUrl) {
+      const res = await fetch(`${backendUrl}/api/convert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, quality }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Falha ao iniciar conversão no servidor remoto.');
+      }
+      const data = await res.json();
+      return NextResponse.json(data);
+    }
+
+    // Se estiver rodando na Vercel e não tiver BACKEND_URL configurado
+    if (process.env.VERCEL) {
+      return NextResponse.json({ 
+        error: 'Para converter no Vercel, você precisa configurar a variável de ambiente BACKEND_URL apontando para o seu servidor Express.' 
+      }, { status: 503 });
+    }
+
+    const taskId = downloadAndConvert(url, quality);
+
+    return NextResponse.json({ taskId });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Falha ao iniciar conversão.' }, { status: 500 });
   }

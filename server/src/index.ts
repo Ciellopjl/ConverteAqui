@@ -24,12 +24,23 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Ciello Upload API is running' });
 });
 
+function extractVideoId(url: string): string | null {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
+}
+
 // 1. Obter informações do vídeo
 app.post('/api/info', async (req, res) => {
   try {
     const { url } = req.body;
     if (!url) {
       return res.status(400).json({ error: 'URL é obrigatória' });
+    }
+
+    if (!extractVideoId(url)) {
+      return res.status(400).json({ 
+        error: 'Link do YouTube inválido ou incompleto. Certifique-se de copiar o link completo do vídeo (ex: contendo watch?v= ou youtu.be/).' 
+      });
     }
 
     const info = await getVideoInfo(url);
@@ -45,6 +56,12 @@ app.post('/api/convert', (req, res) => {
     const { url, quality = '192' } = req.body;
     if (!url) {
       return res.status(400).json({ error: 'URL é obrigatória' });
+    }
+
+    if (!extractVideoId(url)) {
+      return res.status(400).json({ 
+        error: 'Link do YouTube inválido ou incompleto. Certifique-se de copiar o link completo do vídeo (ex: contendo watch?v= ou youtu.be/).' 
+      });
     }
 
     const taskId = downloadAndConvert(url, quality);

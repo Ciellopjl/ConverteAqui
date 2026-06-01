@@ -9,6 +9,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'taskId obrigatório' }, { status: 400 });
   }
 
+  const backendUrl = process.env.BACKEND_URL;
+  if (backendUrl) {
+    const res = await fetch(`${backendUrl}/api/progress?taskId=${taskId}`);
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      return NextResponse.json({ error: errorData.error || 'Erro no servidor remoto.' }, { status: res.status });
+    }
+    const data = await res.json();
+    return NextResponse.json(data);
+  }
+
   const task = getTask(taskId);
 
   if (!task) {

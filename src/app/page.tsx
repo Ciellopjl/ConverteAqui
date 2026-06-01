@@ -52,7 +52,7 @@ export default function Home() {
         title: infoData.title,
         thumbnail: infoData.thumbnail,
         duration: infoData.duration,
-        status: 'converting',
+        status: 'pending',
         progress: 0,
       });
     } catch (err: any) {
@@ -61,7 +61,7 @@ export default function Home() {
       return;
     }
 
-    // Step 2: Get download URL from cobalt
+    // Step 2: Start conversion task and poll for progress
     try {
       const convertRes = await fetch('/api/convert', {
         method: 'POST',
@@ -72,29 +72,60 @@ export default function Home() {
 
       if (!convertRes.ok) throw new Error(convertData.error || 'Falha ao converter.');
 
-      // Show completed state
-      setDisplayTask(prev => prev ? { ...prev, status: 'completed', progress: 100 } : null);
+      const taskId = convertData.taskId;
 
-      // Add to history
-      if (info?.title) {
-        const taskId = crypto.randomUUID();
-        setHistory(prev => [{ id: taskId, title: info!.title, quality }, ...prev]);
-      }
+      // Função de polling para obter o progresso do download e conversão
+      const pollProgress = async () => {
+        try {
+          const progressRes = await fetch(`/api/progress?taskId=${taskId}`);
+          if (!progressRes.ok) throw new Error('Falha ao monitorar o progresso.');
 
-      // Trigger direct download
-      const a = document.createElement('a');
-      a.href = convertData.downloadUrl;
-      a.download = convertData.filename || 'audio.mp3';
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+          const progressData = await progressRes.json();
 
-      // Clear card after delay
-      setTimeout(() => setDisplayTask(null), 5000);
+          // Atualiza o estado visual com o progresso real
+          setDisplayTask(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              status: progressData.status,
+              progress: progressData.progress,
+              error: progressData.error,
+            };
+          });
+
+          if (progressData.status === 'completed') {
+            // Adiciona ao histórico local
+            if (info?.title) {
+              setHistory(prev => [{ id: taskId, title: info!.title, quality }, ...prev]);
+            }
+
+            // Dispara o download automático do arquivo temporário gerado localmente
+            const a = document.createElement('a');
+            a.href = `/api/download?taskId=${taskId}`;
+            a.download = `${info?.title?.replace(/[^a-zA-Z0-9]/g, '_') || 'audio'}.mp3`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            setIsLoading(false);
+            // Limpa o card após 5 segundos
+            setTimeout(() => setDisplayTask(null), 5000);
+          } else if (progressData.status === 'error') {
+            throw new Error(progressData.error || 'Falha na conversão.');
+          } else {
+            // Continua fazendo o polling
+            setTimeout(pollProgress, 1000);
+          }
+        } catch (err: any) {
+          setDisplayTask(prev => prev ? { ...prev, status: 'error', error: err.message } : null);
+          setIsLoading(false);
+        }
+      };
+
+      // Inicia o polling após 1 segundo
+      setTimeout(pollProgress, 1000);
     } catch (err: any) {
       setDisplayTask(prev => prev ? { ...prev, status: 'error', error: err.message } : null);
-    } finally {
       setIsLoading(false);
     }
   };

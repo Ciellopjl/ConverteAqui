@@ -10,6 +10,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'taskId obrigatório' }, { status: 400 });
   }
 
+  const backendUrl = process.env.BACKEND_URL;
+  if (backendUrl) {
+    return NextResponse.redirect(`${backendUrl}/api/download?taskId=${taskId}`);
+  }
+
   const task = getTask(taskId);
 
   if (!task || task.status !== 'completed' || !task.filePath) {
