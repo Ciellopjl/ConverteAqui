@@ -11,8 +11,12 @@ export interface Task {
   error?: string;
 }
 
-// In-memory store (works for local and single-instance VPS, but not for serverless/Edge)
-const tasks: Record<string, Task> = {};
+// In-memory store (shared across Next.js API routes using globalThis in development)
+const globalTasks = globalThis as any;
+if (!globalTasks._tasks) {
+  globalTasks._tasks = {};
+}
+const tasks: Record<string, Task> = globalTasks._tasks;
 
 export function getTask(id: string): Task | undefined {
   return tasks[id];
