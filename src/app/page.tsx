@@ -22,6 +22,12 @@ interface DisplayTask {
   error?: string;
 }
 
+const getApiUrl = (path: string): string => {
+  const isLocalDev = process.env.NODE_ENV === 'development' && !process.env.NEXT_PUBLIC_BACKEND_URL;
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || (isLocalDev ? '' : 'https://ciello-upload.onrender.com');
+  return `${backendUrl}${path}`;
+};
+
 export default function Home() {
   const [displayTask, setDisplayTask] = useState<DisplayTask | null>(null);
   const [history, setHistory] = useState<{id: string, title: string, quality: string}[]>([]);
@@ -38,7 +44,7 @@ export default function Home() {
     let info: VideoInfo | null = null;
 
     try {
-      const infoRes = await fetch('/api/info', {
+      const infoRes = await fetch(getApiUrl('/api/info'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
@@ -68,7 +74,7 @@ export default function Home() {
 
     // Step 2: Start conversion task and poll for progress
     try {
-      const convertRes = await fetch('/api/convert', {
+      const convertRes = await fetch(getApiUrl('/api/convert'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, quality }),
@@ -87,7 +93,7 @@ export default function Home() {
       // Função de polling para obter o progresso do download e conversão
       const pollProgress = async () => {
         try {
-          const progressRes = await fetch(`/api/progress?taskId=${taskId}`);
+          const progressRes = await fetch(getApiUrl(`/api/progress?taskId=${taskId}`));
           if (!progressRes.ok) throw new Error('Falha ao monitorar o progresso.');
 
           const progressData = await progressRes.json();
@@ -111,7 +117,7 @@ export default function Home() {
 
             // Dispara o download automático do arquivo temporário gerado localmente
             const a = document.createElement('a');
-            a.href = `/api/download?taskId=${taskId}`;
+            a.href = getApiUrl(`/api/download?taskId=${taskId}`);
             a.download = `${info?.title?.replace(/[^a-zA-Z0-9]/g, '_') || 'audio'}.mp3`;
             document.body.appendChild(a);
             a.click();
