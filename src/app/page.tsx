@@ -22,11 +22,17 @@ interface DisplayTask {
   error?: string;
 }
 
+const RENDER_BACKEND = 'https://ciello-upload.onrender.com';
+
 const getApiUrl = (path: string): string => {
-  const isLocalDev = process.env.NODE_ENV === 'development' && !process.env.NEXT_PUBLIC_BACKEND_URL;
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || (isLocalDev ? '' : 'https://ciello-upload.onrender.com');
-  return `${backendUrl}${path}`;
+  // Em localhost, usa as rotas locais do Next.js
+  // Em produção (Vercel), chama o backend da Render diretamente
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return path;
+  }
+  return `${RENDER_BACKEND}${path}`;
 };
+
 
 export default function Home() {
   const [displayTask, setDisplayTask] = useState<DisplayTask | null>(null);
