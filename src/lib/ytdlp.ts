@@ -43,7 +43,15 @@ export interface VideoInfo {
 export async function getVideoInfo(url: string): Promise<VideoInfo> {
   return new Promise((resolve, reject) => {
     const dlpPath = getDlpPath();
-    const args = ['--dump-json', '--no-playlist', url];
+    const args = [
+      '--dump-json',
+      '--no-playlist',
+      '--no-check-certificates',
+      '--geo-bypass',
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--referer', 'https://www.youtube.com/',
+      url
+    ];
     console.log(`[ytdlp] getVideoInfo: Running command: "${dlpPath}" ${args.join(' ')}`);
     const ytdlp = spawn(dlpPath, args);
     let output = '';
@@ -74,7 +82,8 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
         }
       } else {
         console.error(`[ytdlp] getVideoInfo failed with code ${code}. Stderr:`, errorOutput);
-        reject(new Error('Falha ao obter informações. Verifique o link.'));
+        const cleanErr = errorOutput.split('\n').filter(line => line.includes('ERROR:')).join(' ') || errorOutput.trim();
+        reject(new Error(`Falha ao obter informações do vídeo: ${cleanErr || 'Erro no yt-dlp.'}`));
       }
     });
   });
@@ -100,7 +109,11 @@ export function downloadAndConvert(url: string, quality: string = '192'): string
       '--audio-quality', `${quality}K`,
       '--ffmpeg-location', getFfmpegPath(),
       '-o', outputTemplate,
-      '--newline' // Força output por linha para parsear progresso mais fácil
+      '--newline',
+      '--no-check-certificates',
+      '--geo-bypass',
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--referer', 'https://www.youtube.com/'
     ];
 
     const dlpPath = getDlpPath();
