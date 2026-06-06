@@ -9,6 +9,7 @@ export interface Task {
   duration?: number;
   filePath?: string;
   error?: string;
+  format?: string;
 }
 
 // In-memory store (shared across Next.js API routes using globalThis in development)

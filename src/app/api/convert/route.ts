@@ -3,7 +3,7 @@ import { downloadAndConvert } from '@/lib/ytdlp';
 
 export async function POST(req: NextRequest) {
   try {
-    const { url, quality = '192' } = await req.json();
+    const { url, quality = '192', format = 'mp3' } = await req.json();
 
     if (!url) {
       return NextResponse.json({ error: 'URL é obrigatória' }, { status: 400 });
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       const res = await fetch(`${backendUrl}/api/convert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, quality }),
+        body: JSON.stringify({ url, quality, format }),
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       }, { status: 503 });
     }
 
-    const taskId = downloadAndConvert(url, quality);
+    const taskId = downloadAndConvert(url, quality, format);
 
     return NextResponse.json({ taskId });
   } catch (error: any) {

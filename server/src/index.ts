@@ -21,7 +21,7 @@ app.use(express.json());
 
 // Rota de Health Check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Ciello Upload API is running' });
+   res.json({ status: 'ok', message: 'Converte Aqui API is running' });
 });
 
 function extractVideoId(url: string): string | null {
@@ -53,7 +53,7 @@ app.post('/api/info', async (req, res) => {
 // 2. Iniciar conversão
 app.post('/api/convert', (req, res) => {
   try {
-    const { url, quality = '192' } = req.body;
+    const { url, quality = '192', format = 'mp3' } = req.body;
     if (!url) {
       return res.status(400).json({ error: 'URL é obrigatória' });
     }
@@ -64,7 +64,7 @@ app.post('/api/convert', (req, res) => {
       });
     }
 
-    const taskId = downloadAndConvert(url, quality);
+    const taskId = downloadAndConvert(url, quality, format);
     res.json({ taskId });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Falha ao iniciar conversão.' });
@@ -104,7 +104,8 @@ app.get('/api/download', (req, res) => {
       return res.status(404).json({ error: 'Arquivo temporário não encontrado no servidor.' });
     }
 
-    const fileName = `${task.title?.replace(/[^a-zA-Z0-9]/g, '_') || 'audio'}.mp3`;
+    const format = task.format || 'mp3';
+    const fileName = `${task.title?.replace(/[^a-zA-Z0-9]/g, '_') || 'audio'}.${format}`;
 
     res.download(task.filePath, fileName, (err) => {
       if (err) {

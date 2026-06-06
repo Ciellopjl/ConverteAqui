@@ -1,38 +1,66 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ciello-black: #0a0a0a;
-  --color-ciello-gray: #111111;
-  --color-ciello-yellow: #FFD700;
-  --color-ciello-yellow-hover: #FFC200;
-  --color-ciello-text: #FFFFFF;
-  --color-ciello-text-muted: #999999;
+  --color-brand-black: #050508;
+  --color-brand-dark: #0a0a14;
+  --color-brand-gray: #12111a;
+  --color-brand-yellow: #FFB800;
+  --color-brand-yellow-hover: #E0A000;
+  --color-brand-purple: #A855F7;
+  --color-brand-purple-hover: #9333EA;
+  --color-brand-text: #F8FAFC;
+  --color-brand-text-muted: #94A3B8;
+  --font-sans: var(--font-outfit), sans-serif;
 }
 
 :root {
-  --background: var(--color-ciello-black);
-  --foreground: var(--color-ciello-text);
+  --background: #030306;
+  --foreground: var(--color-brand-text);
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
   min-height: 100vh;
 }
 
-/* Glassmorphism Classes */
+/* Waveform/Equalizador animado */
+@keyframes waveform-pulse {
+  0%   { transform: scaleY(0.35); opacity: 0.5; }
+  50%  { transform: scaleY(1);    opacity: 1;   }
+  100% { transform: scaleY(0.35); opacity: 0.5; }
+}
+
+
+/* Cybernetic Grid Pattern Overlay */
+.cyber-grid {
+  background-image: 
+    linear-gradient(rgba(168, 85, 247, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(168, 85, 247, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: center center;
+}
+
+/* Glassmorphism Dynamic Glow Panels */
 .glass-panel {
-  background: rgba(255, 215, 0, 0.03);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 215, 0, 0.15);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+  background: rgba(10, 10, 20, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(168, 85, 247, 0.12);
+  box-shadow: 
+    0 10px 30px -10px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .glass-panel:hover {
-  border-color: rgba(255, 215, 0, 0.3);
-  box-shadow: 0 4px 30px rgba(255, 215, 0, 0.05);
+  border-color: rgba(168, 85, 247, 0.3);
+  box-shadow: 
+    0 20px 40px -15px rgba(168, 85, 247, 0.15),
+    0 0 20px rgba(168, 85, 247, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
 }
 
 /* Custom Scrollbar */
@@ -41,14 +69,34 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0a0a0a;
+  background: var(--color-brand-black);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: #252433;
   border-radius: 4px;
+  border: 1px solid rgba(168, 85, 247, 0.05);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #FFD700;
+  background: var(--color-brand-purple);
+  box-shadow: 0 0 10px var(--color-brand-purple);
+}
+
+/* Active Gradient Flow Progress Bar */
+@keyframes progress-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-progress-flow {
+  background-size: 200% 200%;
+  animation: progress-flow 2s ease infinite;
 }

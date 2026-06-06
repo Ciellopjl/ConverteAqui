@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-const WORDS = ['Ciello Uploads', 'MP3 Premium', 'Download Rápido'];
+const WORDS = ['Converte Aqui', 'MP3 Premium', 'Download Rápido'];
 
 export default function TypewriterTitle() {
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
@@ -43,11 +43,10 @@ export default function TypewriterTitle() {
 
   return (
     <h1 
-      className="text-4xl md:text-6xl font-bold text-center mb-8 drop-shadow-lg min-h-[48px] md:min-h-[72px]" 
-      style={{ color: 'var(--color-ciello-yellow)' }}
+      className="text-4xl md:text-6xl font-bold text-center mb-8 drop-shadow-lg min-h-[48px] md:min-h-[72px] bg-clip-text text-transparent bg-gradient-to-r from-brand-yellow via-brand-purple to-indigo-400 select-none"
     >
       <span>{currentText}</span>
-      <span className="animate-pulse">|</span>
+      <span className="animate-pulse text-brand-yellow ml-0.5">|</span>
     </h1>
   );
 }

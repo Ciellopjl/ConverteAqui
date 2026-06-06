@@ -89,32 +89,44 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
   });
 }
 
-export function downloadAndConvert(url: string, quality: string = '192'): string {
+export function downloadAndConvert(url: string, quality: string = '192', format: string = 'mp3'): string {
   const taskId = crypto.randomUUID();
   const tmpDir = os.tmpdir();
   const outputTemplate = path.join(tmpDir, `${taskId}.%(ext)s`);
-  const finalFilePath = path.join(tmpDir, `${taskId}.mp3`);
+  const finalFilePath = path.join(tmpDir, `${taskId}.${format}`);
 
-  setTask(taskId, { status: 'pending', progress: 0 });
+  setTask(taskId, { status: 'pending', progress: 0, format });
 
   // Pegamos info primeiro para salvar no task
   getVideoInfo(url).then(info => {
     setTask(taskId, { title: info.title, thumbnail: info.thumbnail, duration: info.duration, status: 'downloading' });
     
-    // yt-dlp faz o download e usa ffmpeg automaticamente para converter
-    const args = [
-      url,
-      '--extract-audio',
-      '--audio-format', 'mp3',
-      '--audio-quality', `${quality}K`,
-      '--ffmpeg-location', getFfmpegPath(),
-      '-o', outputTemplate,
-      '--newline',
-      '--no-check-certificates',
-      '--geo-bypass',
-      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      '--referer', 'https://www.youtube.com/'
-    ];
+    // yt-dlp faz o download e usa ffmpeg automaticamente para converter/mesclar
+    const args = format === 'mp4'
+      ? [
+          url,
+          '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+          '--ffmpeg-location', getFfmpegPath(),
+          '-o', outputTemplate,
+          '--newline',
+          '--no-check-certificates',
+          '--geo-bypass',
+          '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          '--referer', 'https://www.youtube.com/'
+        ]
+      : [
+          url,
+          '--extract-audio',
+          '--audio-format', 'mp3',
+          '--audio-quality', `${quality}K`,
+          '--ffmpeg-location', getFfmpegPath(),
+          '-o', outputTemplate,
+          '--newline',
+          '--no-check-certificates',
+          '--geo-bypass',
+          '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          '--referer', 'https://www.youtube.com/'
+        ];
 
     const dlpPath = getDlpPath();
     console.log(`[ytdlp] downloadAndConvert: Running command: "${dlpPath}" ${args.join(' ')}`);
@@ -130,8 +142,8 @@ export function downloadAndConvert(url: string, quality: string = '192'): string
         setTask(taskId, { status: 'downloading', progress });
       }
 
-      // Se começar a extrair o áudio (converter)
-      if (output.includes('[ExtractAudio]')) {
+      // Se começar a extrair o áudio (converter) ou mesclar (MP4)
+      if (output.includes('[ExtractAudio]') || output.includes('[Merger]')) {
         setTask(taskId, { status: 'converting', progress: 100 });
       }
     });

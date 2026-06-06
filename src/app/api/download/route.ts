@@ -25,7 +25,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const fileBuffer = fs.readFileSync(task.filePath);
-    const fileName = `${task.title?.replace(/[^a-zA-Z0-9]/g, '_') || 'audio'}.mp3`;
+    const format = task.format || 'mp3';
+    const fileName = `${task.title?.replace(/[^a-zA-Z0-9]/g, '_') || 'audio'}.${format}`;
+    const contentType = format === 'mp4' ? 'video/mp4' : 'audio/mpeg';
 
     // Limpar arquivo temporário e tarefa da memória
     fs.unlinkSync(task.filePath);
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(fileBuffer, {
       status: 200,
       headers: {
-        'Content-Type': 'audio/mpeg',
+        'Content-Type': contentType,
         'Content-Disposition': `attachment; filename="${fileName}"`,
       },
     });

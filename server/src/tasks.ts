@@ -9,6 +9,7 @@ export interface Task {
   duration?: number;
   filePath?: string;
   error?: string;
+  format?: string;
 }
 
 // In-memory store (works for persistent containers like Railway, Render or VPS)
