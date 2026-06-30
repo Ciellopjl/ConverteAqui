@@ -25,6 +25,28 @@ const getFfmpegPath = () => {
   return 'ffmpeg'; // fallback global
 };
 
+// O YouTube passou a bloquear/exigir login para IPs de datacenter (Vercel inclusive),
+// retornando "Sign in to confirm you're not a bot". A correção é autenticar o yt-dlp com
+// cookies de uma sessão real, passados via env var (YTDLP_COOKIES) em vez de um arquivo
+// versionado no repo. Escrevemos o conteúdo uma vez por instância da function em /tmp.
+let cookiesFilePath: string | null = null;
+
+const getCookiesArgs = (): string[] => {
+  if (process.env.YTDLP_COOKIES_FILE) {
+    return ['--cookies', process.env.YTDLP_COOKIES_FILE];
+  }
+
+  if (process.env.YTDLP_COOKIES) {
+    if (!cookiesFilePath) {
+      cookiesFilePath = path.join(os.tmpdir(), 'yt-dlp-cookies.txt');
+      fs.writeFileSync(cookiesFilePath, process.env.YTDLP_COOKIES, 'utf8');
+    }
+    return ['--cookies', cookiesFilePath];
+  }
+
+  return [];
+};
+
 export interface VideoInfo {
   id: string;
   title: string;
@@ -42,6 +64,7 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
       '--geo-bypass',
       '--user-agent', USER_AGENT,
       '--referer', 'https://www.youtube.com/',
+      ...getCookiesArgs(),
       url
     ];
     console.log(`[ytdlp] getVideoInfo: Running command: "${dlpPath}" ${args.join(' ')}`);
@@ -112,6 +135,7 @@ export function downloadAndConvert(
       '--geo-bypass',
       '--user-agent', USER_AGENT,
       '--referer', 'https://www.youtube.com/',
+      ...getCookiesArgs(),
     ];
 
     // yt-dlp faz o download e usa ffmpeg automaticamente para converter/mesclar
