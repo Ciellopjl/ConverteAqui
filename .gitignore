@@ -3,7 +3,9 @@
 # dependencies
 node_modules/
 **/node_modules/
-server/dist/
+
+# yt-dlp binário Linux (gerado no build da Vercel, não versionar)
+bin/yt-dlp
 /.pnp
 .pnp.*
 .yarn/*

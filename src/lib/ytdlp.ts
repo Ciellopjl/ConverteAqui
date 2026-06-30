@@ -1,35 +1,27 @@
 import { spawn } from 'child_process';
-import { setTask } from './tasks';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
 import fs from 'fs';
+import ffmpegStatic from 'ffmpeg-static';
 
+const USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+// O binário (bin/yt-dlp ou bin/yt-dlp.exe) é garantido por scripts/setup-ytdlp.mjs no build
+// e incluído explicitamente via outputFileTracingIncludes (next.config.ts). Não usamos
+// fs.existsSync aqui de propósito: um caminho dinâmico passado a uma chamada de fs faz o
+// Node File Trace rastrear o projeto inteiro (incluindo .git) por segurança.
 const getDlpPath = () => {
-  const customPath = process.env.YTDLP_PATH;
-  if (customPath) return customPath;
-  const localExe = path.join(process.cwd(), 'bin', 'yt-dlp.exe');
-  if (fs.existsSync(localExe)) return localExe;
-  return 'yt-dlp'; // fallback global
+  if (process.env.YTDLP_PATH) return process.env.YTDLP_PATH;
+  const isWin = process.platform === 'win32';
+  return path.join(process.cwd(), 'bin', isWin ? 'yt-dlp.exe' : 'yt-dlp');
 };
 
 const getFfmpegPath = () => {
   const customPath = process.env.FFMPEG_PATH;
   if (customPath) return customPath;
-
-  // Tenta localizar no node_modules relativo ao diretório de trabalho atual (evita problemas de empacotamento no Next.js)
-  const isWin = os.platform() === 'win32';
-  const localFfmpeg = path.join(process.cwd(), 'node_modules', 'ffmpeg-static', isWin ? 'ffmpeg.exe' : 'ffmpeg');
-  if (fs.existsSync(localFfmpeg)) {
-    return localFfmpeg;
-  }
-
-  try {
-    const ffmpegStatic = require('ffmpeg-static');
-    if (ffmpegStatic) return ffmpegStatic;
-  } catch {
-    // ignore
-  }
+  if (ffmpegStatic) return ffmpegStatic;
   return 'ffmpeg'; // fallback global
 };
 
@@ -48,7 +40,7 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
       '--no-playlist',
       '--no-check-certificates',
       '--geo-bypass',
-      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--user-agent', USER_AGENT,
       '--referer', 'https://www.youtube.com/',
       url
     ];
@@ -63,6 +55,11 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
 
     ytdlp.stderr.on('data', (data) => {
       errorOutput += data.toString();
+    });
+
+    ytdlp.on('error', (err) => {
+      console.error('[ytdlp] getVideoInfo spawn error:', err);
+      reject(err);
     });
 
     ytdlp.on('close', (code) => {
@@ -89,64 +86,43 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
   });
 }
 
-export function downloadAndConvert(url: string, quality: string = '192', format: string = 'mp3'): string {
-  const taskId = crypto.randomUUID();
-  const tmpDir = os.tmpdir();
-  const outputTemplate = path.join(tmpDir, `${taskId}.%(ext)s`);
-  const finalFilePath = path.join(tmpDir, `${taskId}.${format}`);
+export interface DownloadResult {
+  filePath: string;
+  fileName: string;
+  contentType: string;
+}
 
-  setTask(taskId, { status: 'pending', progress: 0, format });
+export function downloadAndConvert(
+  url: string,
+  quality: string = '192',
+  format: string = 'mp3',
+  info?: { title?: string }
+): Promise<DownloadResult> {
+  return new Promise((resolve, reject) => {
+    const id = crypto.randomUUID();
+    const tmpDir = os.tmpdir();
+    const outputTemplate = path.join(tmpDir, `${id}.%(ext)s`);
+    const finalFilePath = path.join(tmpDir, `${id}.${format}`);
 
-  // Pegamos info primeiro para salvar no task
-  getVideoInfo(url).then(info => {
-    setTask(taskId, { title: info.title, thumbnail: info.thumbnail, duration: info.duration, status: 'downloading' });
-    
+    const commonArgs = [
+      '--ffmpeg-location', getFfmpegPath(),
+      '-o', outputTemplate,
+      '--newline',
+      '--no-check-certificates',
+      '--geo-bypass',
+      '--user-agent', USER_AGENT,
+      '--referer', 'https://www.youtube.com/',
+    ];
+
     // yt-dlp faz o download e usa ffmpeg automaticamente para converter/mesclar
     const args = format === 'mp4'
-      ? [
-          url,
-          '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-          '--ffmpeg-location', getFfmpegPath(),
-          '-o', outputTemplate,
-          '--newline',
-          '--no-check-certificates',
-          '--geo-bypass',
-          '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          '--referer', 'https://www.youtube.com/'
-        ]
-      : [
-          url,
-          '--extract-audio',
-          '--audio-format', 'mp3',
-          '--audio-quality', `${quality}K`,
-          '--ffmpeg-location', getFfmpegPath(),
-          '-o', outputTemplate,
-          '--newline',
-          '--no-check-certificates',
-          '--geo-bypass',
-          '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          '--referer', 'https://www.youtube.com/'
-        ];
+      ? [url, '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', ...commonArgs]
+      : [url, '--extract-audio', '--audio-format', 'mp3', '--audio-quality', `${quality}K`, ...commonArgs];
 
     const dlpPath = getDlpPath();
     console.log(`[ytdlp] downloadAndConvert: Running command: "${dlpPath}" ${args.join(' ')}`);
     const ytdlp = spawn(dlpPath, args);
     let errorOutput = '';
-
-    ytdlp.stdout.on('data', (data) => {
-      const output = data.toString();
-      // Parse de progresso de download ex: [download]  45.0% of 10.00MiB
-      const downloadMatch = output.match(/\[download\]\s+([\d.]+)%/);
-      if (downloadMatch && downloadMatch[1]) {
-        const progress = parseFloat(downloadMatch[1]);
-        setTask(taskId, { status: 'downloading', progress });
-      }
-
-      // Se começar a extrair o áudio (converter) ou mesclar (MP4)
-      if (output.includes('[ExtractAudio]') || output.includes('[Merger]')) {
-        setTask(taskId, { status: 'converting', progress: 100 });
-      }
-    });
 
     ytdlp.stderr.on('data', (data) => {
       const str = data.toString();
@@ -155,27 +131,25 @@ export function downloadAndConvert(url: string, quality: string = '192', format:
     });
 
     ytdlp.on('close', (code) => {
-      console.log(`[ytdlp] downloadAndConvert process closed with code ${code}`);
       const fileExists = fs.existsSync(finalFilePath);
-      console.log(`[ytdlp] finalFilePath: ${finalFilePath}, exists: ${fileExists}`);
+      console.log(`[ytdlp] downloadAndConvert closed with code ${code}, file exists: ${fileExists}`);
       if (code === 0 && fileExists) {
-        setTask(taskId, { status: 'completed', progress: 100, filePath: finalFilePath });
+        const safeName = (info?.title || 'download').replace(/[^a-zA-Z0-9\-_ ]/g, '_');
+        resolve({
+          filePath: finalFilePath,
+          fileName: `${safeName}.${format}`,
+          contentType: format === 'mp4' ? 'video/mp4' : 'audio/mpeg',
+        });
       } else {
-        const errMsg = `Falha durante o download ou conversão. Código de saída: ${code}. Arquivo existe: ${fileExists}.`;
         console.error(`[ytdlp] downloadAndConvert failed. Stderr:`, errorOutput);
-        setTask(taskId, { status: 'error', error: errMsg });
+        const cleanErr = errorOutput.split('\n').filter(line => line.includes('ERROR:')).join(' ') || errorOutput.trim();
+        reject(new Error(cleanErr || `Falha durante o download ou conversão (código ${code}).`));
       }
     });
-    
+
     ytdlp.on('error', (err) => {
-       console.error(`[ytdlp] downloadAndConvert spawn error:`, err);
-       setTask(taskId, { status: 'error', error: err.message });
-     });
-
-  }).catch(err => {
-    console.error(`[ytdlp] getVideoInfo catch block error:`, err);
-    setTask(taskId, { status: 'error', error: err.message });
+      console.error(`[ytdlp] downloadAndConvert spawn error:`, err);
+      reject(err);
+    });
   });
-
-  return taskId;
 }

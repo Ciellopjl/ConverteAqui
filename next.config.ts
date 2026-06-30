@@ -17,6 +17,22 @@ const nextConfig: NextConfig = {
       }
     ],
   },
+  outputFileTracingIncludes: {
+    "/api/info": ["./bin/**"],
+    "/api/convert": ["./bin/**"],
+  },
+  outputFileTracingExcludes: {
+    "*": [
+      "./.git/**",
+      "./.vercel/**",
+      "./.claude/**",
+      "./.env*",
+      "./*.md",
+      "./Dockerfile",
+      "./.dockerignore",
+      "./tsconfig.tsbuildinfo",
+    ],
+  },
 };
 
 export default nextConfig;
